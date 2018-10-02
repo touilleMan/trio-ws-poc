@@ -77,7 +77,7 @@ async def handle_connection(stream):
 
 
 async def main():
-    port = os.environ.get('PORT', 7777)
+    port = int(os.environ.get('PORT', 7777))
     host = os.environ.get('HOST', '0.0.0.0')
     print(f'Starting server on {host}:{port}')
     await trio.serve_tcp(handle_connection, port)

@@ -104,7 +104,7 @@ async def main():
         raise SystemError(f'usage:\n{sys.argv[0]} <host> <port>')
     else:
         host = sys.argv[1]
-        port = sys.argv[2]
+        port = int(sys.argv[2])
     await wsproto_client_demo(host, port)
 
 
