@@ -1,7 +1,10 @@
 import os
 import trio
+import argparse
 from wsproto.events import ConnectionClosed, ConnectionRequested, PingReceived, TextReceived
 from wsproto.connection import WSConnection, ConnectionType
+
+from cert import CERT
 
 
 RECEIVE_BYTES = 4096
@@ -76,11 +79,29 @@ async def handle_connection(stream):
         await stream.send_all(out_data)
 
 
+async def handle_connection_with_ssl(stream):
+    ssl_context = trio.ssl.create_default_context(trio.ssl.Purpose.CLIENT_AUTH)
+    CERT.configure_cert(ssl_context)
+    ssl_stream = trio.ssl.SSLStream(stream, ssl_context, server_side=True)
+
+    return await handle_connection(ssl_stream)
+
+
 async def main():
-    port = int(os.environ.get('PORT', 7777))
-    host = os.environ.get('HOST', '0.0.0.0')
-    print(f'Starting server on {host}:{port}')
-    await trio.serve_tcp(handle_connection, port)
+    HOST = os.environ.get('HOST', '0.0.0.0')
+    PORT = int(os.environ.get('PORT', 7777))
+    SSL = 'USE_SSL' in os.environ
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--host', default=HOST)
+    parser.add_argument('--port', type=int, default=PORT)
+    parser.add_argument('--ssl', action='store_true', default=SSL)
+    args = parser.parse_args()
+
+    print(f'Starting server on {args.host}:{args.port}')
+    if args.ssl:
+        await trio.serve_tcp(handle_connection_with_ssl, args.port, host=args.host)
+    else:
+        await trio.serve_tcp(handle_connection, args.port, host=args.host)
 
 
 if __name__ == '__main__':

@@ -1,13 +1,21 @@
-import sys
 import trio
+import argparse
 from wsproto.events import ConnectionEstablished, TextReceived, PongReceived
 from wsproto.connection import WSConnection, ConnectionType
+
+from cert import CA
 
 
 RECEIVE_BYTES = 4096
 
 
-async def wsproto_client_demo(host, port):
+def upgrade_stream_to_ssl(raw_stream, hostname):
+    ssl_context = trio.ssl.create_default_context()
+    CA.configure_trust(ssl_context)
+    return trio.ssl.SSLStream(raw_stream, ssl_context, server_hostname=hostname)
+
+
+async def wsproto_client_demo(host, port, use_ssl):
     '''
     Demonstrate wsproto:
     0) Open TCP connection
@@ -21,6 +29,8 @@ async def wsproto_client_demo(host, port):
     # 0) Open TCP connection
     print('[C] Connecting to {}:{}'.format(host, port))
     conn = await trio.open_tcp_stream(host, port)
+    if use_ssl:
+        conn = upgrade_stream_to_ssl(conn, host)
 
     # 1) Negotiate WebSocket opening handshake
     print('[C] Opening WebSocket')
@@ -97,15 +107,13 @@ async def net_send_recv(ws, conn):
 
 
 async def main():
-    if len(sys.argv) == 1:
-        host = 'localhost'
-        port = 7777
-    elif len(sys.argv) != 3:
-        raise SystemError(f'usage:\n{sys.argv[0]} <host> <port>')
-    else:
-        host = sys.argv[1]
-        port = int(sys.argv[2])
-    await wsproto_client_demo(host, port)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--host', default='localhost')
+    parser.add_argument('--port', type=int, default=7777)
+    parser.add_argument('--ssl', action='store_true')
+    args = parser.parse_args()
+
+    await wsproto_client_demo(args.host, args.port, args.ssl)
 
 
 if __name__ == '__main__':
